@@ -18,7 +18,8 @@ return new class extends Migration
             $table->string('password')->comment('Password terenkripsi');
             $table->enum('role', ['admin', 'mahasiswa'])->default('mahasiswa')->comment('Role user');
             $table->string('nim')->nullable()->unique()->comment('NIM mahasiswa (hanya mahasiswa)');
-            $table->foreignId('study_program_id')->nullable()->constrained()->onDelete('set null')->comment('Program studi mahasiswa');
+            $table->unsignedBigInteger('study_program_id')->nullable()->comment('Program studi mahasiswa');
+            $table->index('study_program_id');
             $table->string('fcm_token')->nullable()->comment('Firebase Cloud Messaging token');
             $table->rememberToken();
             $table->timestamps();

@@ -20,6 +20,10 @@ return new class extends Migration
 
             $table->index('code');
         });
+
+        Schema::table('users', function (Blueprint $table) {
+            $table->foreign('study_program_id')->references('id')->on('study_programs')->onDelete('set null');
+        });
     }
 
     /**
@@ -28,5 +32,8 @@ return new class extends Migration
     public function down(): void
     {
         Schema::dropIfExists('study_programs');
+        Schema::table('users', function (Blueprint $table) {
+            $table->dropForeign(['study_program_id']);
+        });
     }
 };
