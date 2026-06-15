@@ -269,9 +269,10 @@ class StudentService
      */
     public function exportStudents(array $filters = []): array
     {
-        return $this->getAllStudents(array_merge($filters, ['per_page' => 999]))
-            ->items()
-            ->map(function ($student) {
+        $paginator = $this->getAllStudents(array_merge($filters, ['per_page' => 999]));
+        $items = collect($paginator->items());
+        
+        return $items->map(function ($student) {
                 return [
                     'id' => $student->id,
                     'nim' => $student->nim,

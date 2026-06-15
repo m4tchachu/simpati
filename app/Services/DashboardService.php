@@ -7,6 +7,7 @@ use App\Enums\DebtType;
 use App\Models\DebtRecord;
 use App\Models\User;
 use Carbon\Carbon;
+use Illuminate\Support\Facades\DB;
 
 class DashboardService
 {
@@ -372,9 +373,9 @@ class DashboardService
             $q->where('creator_id', $user->id)
                 ->orWhere('counterpart_id', $user->id);
         })->select('counterpart_id', 'creator_id')
-            ->addSelect(\DB::raw('COUNT(*) as transaction_count'))
-            ->addSelect(\DB::raw('SUM(CASE WHEN creator_id = ? THEN amount ELSE 0 END) as total_created'))
-            ->addSelect(\DB::raw('SUM(CASE WHEN counterpart_id = ? THEN amount ELSE 0 END) as total_received'))
+            ->addSelect(DB::raw('COUNT(*) as transaction_count'))
+            ->addSelect(DB::raw('SUM(CASE WHEN creator_id = ? THEN amount ELSE 0 END) as total_created'))
+            ->addSelect(DB::raw('SUM(CASE WHEN counterpart_id = ? THEN amount ELSE 0 END) as total_received'))
             ->setBindings([$user->id, $user->id], 'select')
             ->with(['creator', 'counterpart'])
             ->groupBy(['counterpart_id', 'creator_id'])

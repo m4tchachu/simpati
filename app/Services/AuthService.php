@@ -121,8 +121,12 @@ class AuthService
      */
     public function refreshToken(User $user): string
     {
-        // Delete old token
-        $user->currentAccessToken()->delete();
+        // Revoke current token via the tokens relationship
+        $currentToken = $user->currentAccessToken();
+        if ($currentToken !== null) {
+            // Delete the specific token
+            $user->tokens()->where('id', $currentToken->id)->delete();
+        }
 
         // Create new token
         $token = $user->createToken(

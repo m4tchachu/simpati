@@ -168,11 +168,11 @@ class NotificationService
      * Send due date reminder
      *
      * @param DebtRecord $debtRecord
-     * @param int $daysBefore
      * @param User $user
+     * @param int $daysBefore
      * @return Notification|null
      */
-    public function sendDueReminder(DebtRecord $debtRecord, int $daysBefore = 3, User $user): ?Notification
+    public function sendDueReminder(DebtRecord $debtRecord, User $user, int $daysBefore = 3): ?Notification
     {
         // Check if reminder already sent
         if (ReminderLog::isReminderSent($debtRecord->id, $user->id, $daysBefore)) {
