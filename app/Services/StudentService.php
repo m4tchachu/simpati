@@ -2,7 +2,10 @@
 
 namespace App\Services;
 
+use App\Enums\DebtStatus;
+use App\Enums\DebtType;
 use App\Enums\UserRole;
+use App\Models\DebtRecord;
 use App\Models\User;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Facades\Hash;
@@ -205,15 +208,19 @@ class StudentService
     {
         $student = User::findOrFail($studentId);
 
-        $allDebts = $student->getAllDebts();
+        // Use database aggregation instead of loading all debts into memory
+        $debtsQuery = DebtRecord::where(function ($q) use ($student) {
+            $q->where('creator_id', $student->id)
+                ->orWhere('counterpart_id', $student->id);
+        });
 
         $stats = [
-            'total_debt' => $allDebts->where('type', 'debt')->sum('amount'),
-            'total_receivable' => $allDebts->where('type', 'receivable')->sum('amount'),
-            'active_debt_count' => $allDebts->where('type', 'debt')->where('status', 'active')->count(),
-            'active_receivable_count' => $allDebts->where('type', 'receivable')->where('status', 'active')->count(),
-            'pending_count' => $allDebts->where('status', 'pending')->count(),
-            'overdue_count' => $allDebts->where('status', 'active')
+            'total_debt' => (float) (clone $debtsQuery)->where('type', DebtType::DEBT->value)->sum('amount'),
+            'total_receivable' => (float) (clone $debtsQuery)->where('type', DebtType::RECEIVABLE->value)->sum('amount'),
+            'active_debt_count' => (clone $debtsQuery)->where('type', DebtType::DEBT->value)->where('status', DebtStatus::ACTIVE->value)->count(),
+            'active_receivable_count' => (clone $debtsQuery)->where('type', DebtType::RECEIVABLE->value)->where('status', DebtStatus::ACTIVE->value)->count(),
+            'pending_count' => (clone $debtsQuery)->where('status', DebtStatus::PENDING->value)->count(),
+            'overdue_count' => (clone $debtsQuery)->where('status', DebtStatus::ACTIVE->value)
                 ->where('due_date', '<', now())->count(),
         ];
 

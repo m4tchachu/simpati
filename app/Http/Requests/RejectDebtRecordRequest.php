@@ -9,12 +9,11 @@ class RejectDebtRecordRequest extends FormRequest
 {
     /**
      * Determine if the user is authorized to make this request.
+     * Authorization is handled in Controller via Policy
      */
     public function authorize(): bool
     {
-        // Hanya counterpart yang bisa reject
-        $debtRecord = $this->route('debtRecord');
-        return $this->user() && $debtRecord->counterpart_id === $this->user()->id;
+        return true;
     }
 
     /**
@@ -32,40 +31,6 @@ class RejectDebtRecordRequest extends FormRequest
                 'max:500',
             ],
         ];
-    }
-
-    /**
-     * Get the validation rules that apply to the request (with status check).
-     *
-     * @return array<string, \Illuminate\Contracts\Validation\ValidationRule|array<mixed>|string>
-     */
-    public function validatedRules(): array
-    {
-        $debtRecord = $this->route('debtRecord');
-
-        $rules = $this->rules();
-
-        // Add status validation
-        $rules['status'] = [
-            function ($attribute, $value, $fail) use ($debtRecord) {
-                if ($debtRecord->status !== DebtStatus::PENDING) {
-                    $fail('Catatan hanya bisa ditolak jika statusnya masih "Menunggu Konfirmasi". Status saat ini: ' . $debtRecord->status->label());
-                }
-            },
-        ];
-
-        return $rules;
-    }
-
-    /**
-     * Prepare the data for validation.
-     */
-    protected function prepareForValidation(): void
-    {
-        // Trigger status validation
-        $this->merge([
-            'status' => true,
-        ]);
     }
 
     /**

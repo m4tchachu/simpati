@@ -44,36 +44,65 @@ class DashboardService
 
     /**
      * Get debt statistics for dashboard
+     * Uses database aggregation to avoid N+1 queries
      *
      * @param User $user
      * @return array
      */
     public function getDebtStats(User $user): array
     {
-        $allDebts = $user->getAllDebts();
+        // Query all debts for user (creator or counterpart)
+        $allDebtsQuery = DebtRecord::where(function ($q) use ($user) {
+            $q->where('creator_id', $user->id)
+                ->orWhere('counterpart_id', $user->id);
+        });
 
-        $totalDebt = (float) $allDebts->where('type', DebtType::DEBT)->sum('amount');
-        $totalReceivable = (float) $allDebts->where('type', DebtType::RECEIVABLE)->sum('amount');
-        $activeDebtAmount = (float) $allDebts->where('type', DebtType::DEBT)
-            ->where('status', DebtStatus::ACTIVE)->sum('amount');
-        $activeReceivableAmount = (float) $allDebts->where('type', DebtType::RECEIVABLE)
-            ->where('status', DebtStatus::ACTIVE)->sum('amount');
+        // Use database aggregation instead of loading all records into memory
+        $totalDebt = (float) $allDebtsQuery->clone()
+            ->where('type', DebtType::DEBT->value)
+            ->sum('amount');
+
+        $totalReceivable = (float) $allDebtsQuery->clone()
+            ->where('type', DebtType::RECEIVABLE->value)
+            ->sum('amount');
+
+        $activeDebtAmount = (float) $allDebtsQuery->clone()
+            ->where('type', DebtType::DEBT->value)
+            ->where('status', DebtStatus::ACTIVE->value)
+            ->sum('amount');
+
+        $activeReceivableAmount = (float) $allDebtsQuery->clone()
+            ->where('type', DebtType::RECEIVABLE->value)
+            ->where('status', DebtStatus::ACTIVE->value)
+            ->sum('amount');
 
         return [
             'total_debt' => $totalDebt,
             'total_receivable' => $totalReceivable,
             'net_balance' => $totalReceivable - $totalDebt,
-            'active_debt_count' => $allDebts->where('type', DebtType::DEBT)
-                ->where('status', DebtStatus::ACTIVE)->count(),
-            'active_receivable_count' => $allDebts->where('type', DebtType::RECEIVABLE)
-                ->where('status', DebtStatus::ACTIVE)->count(),
+            'active_debt_count' => $allDebtsQuery->clone()
+                ->where('type', DebtType::DEBT->value)
+                ->where('status', DebtStatus::ACTIVE->value)
+                ->count(),
+            'active_receivable_count' => $allDebtsQuery->clone()
+                ->where('type', DebtType::RECEIVABLE->value)
+                ->where('status', DebtStatus::ACTIVE->value)
+                ->count(),
             'active_debt_amount' => $activeDebtAmount,
             'active_receivable_amount' => $activeReceivableAmount,
-            'pending_count' => $allDebts->where('status', DebtStatus::PENDING)->count(),
-            'overdue_count' => $allDebts->where('status', DebtStatus::ACTIVE)
-                ->where('due_date', '<', now())->count(),
-            'settled_count' => $allDebts->where('status', DebtStatus::SETTLED)->count(),
-            'rejected_count' => $allDebts->where('status', DebtStatus::REJECTED)->count(),
+            'pending_count' => $allDebtsQuery->clone()
+                ->where('status', DebtStatus::PENDING->value)
+                ->count(),
+            'overdue_count' => $allDebtsQuery->clone()
+                ->where('status', DebtStatus::ACTIVE->value)
+                ->where('due_date', '<', now())
+                ->count(),
+            'settled_count' => $allDebtsQuery->clone()
+                ->where('status', DebtStatus::SETTLED->value)
+                ->count(),
+            'rejected_count' => $allDebtsQuery->clone()
+                ->where('status', DebtStatus::REJECTED->value)
+                ->count(),
         ];
     }
 
@@ -295,19 +324,27 @@ class DashboardService
      */
     private function getDebtTypeDistribution(User $user): array
     {
-        $allDebts = $user->getAllDebts();
+        $debtQuery = DebtRecord::where(function ($q) use ($user) {
+            $q->where('creator_id', $user->id)
+                ->orWhere('counterpart_id', $user->id);
+        })->where('type', DebtType::DEBT->value);
+
+        $receivableQuery = DebtRecord::where(function ($q) use ($user) {
+            $q->where('creator_id', $user->id)
+                ->orWhere('counterpart_id', $user->id);
+        })->where('type', DebtType::RECEIVABLE->value);
 
         return [
             [
                 'name' => DebtType::DEBT->label(),
-                'value' => (float) $allDebts->where('type', DebtType::DEBT)->sum('amount'),
-                'count' => $allDebts->where('type', DebtType::DEBT)->count(),
+                'value' => (float) $debtQuery->clone()->sum('amount'),
+                'count' => $debtQuery->clone()->count(),
                 'color' => '#dc3545',
             ],
             [
                 'name' => DebtType::RECEIVABLE->label(),
-                'value' => (float) $allDebts->where('type', DebtType::RECEIVABLE)->sum('amount'),
-                'count' => $allDebts->where('type', DebtType::RECEIVABLE)->count(),
+                'value' => (float) $receivableQuery->clone()->sum('amount'),
+                'count' => $receivableQuery->clone()->count(),
                 'color' => '#28a745',
             ],
         ];

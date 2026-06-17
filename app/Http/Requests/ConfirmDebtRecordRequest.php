@@ -9,12 +9,11 @@ class ConfirmDebtRecordRequest extends FormRequest
 {
     /**
      * Determine if the user is authorized to make this request.
+     * Authorization is handled in Controller via Policy
      */
     public function authorize(): bool
     {
-        // Hanya counterpart yang bisa confirm
-        $debtRecord = $this->route('debtRecord');
-        return $this->user() && $debtRecord->counterpart_id === $this->user()->id;
+        return true;
     }
 
     /**
@@ -24,29 +23,8 @@ class ConfirmDebtRecordRequest extends FormRequest
      */
     public function rules(): array
     {
-        $debtRecord = $this->route('debtRecord');
-
-        return [
-            // Validasi: Status harus pending
-            'status' => [
-                function ($attribute, $value, $fail) use ($debtRecord) {
-                    if ($debtRecord->status !== DebtStatus::PENDING) {
-                        $fail('Catatan hanya bisa dikonfirmasi jika statusnya masih "Menunggu Konfirmasi". Status saat ini: ' . $debtRecord->status->label());
-                    }
-                },
-            ],
-        ];
-    }
-
-    /**
-     * Prepare the data for validation.
-     */
-    protected function prepareForValidation(): void
-    {
-        // Trigger validation dengan dummy value
-        $this->merge([
-            'status' => true,
-        ]);
+        // Validation only - status check moved to controller
+        return [];
     }
 
     /**

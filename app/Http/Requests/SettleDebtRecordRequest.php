@@ -9,15 +9,11 @@ class SettleDebtRecordRequest extends FormRequest
 {
     /**
      * Determine if the user is authorized to make this request.
+     * Authorization is handled in Controller via Policy
      */
     public function authorize(): bool
     {
-        // Creator atau counterpart bisa mark as settled
-        $debtRecord = $this->route('debtRecord');
-        return $this->user() && (
-            $debtRecord->creator_id === $this->user()->id ||
-            $debtRecord->counterpart_id === $this->user()->id
-        );
+        return true;
     }
 
     /**
@@ -27,28 +23,8 @@ class SettleDebtRecordRequest extends FormRequest
      */
     public function rules(): array
     {
-        return [
-            // Validasi: Status harus active
-            'status' => [
-                function ($attribute, $value, $fail) {
-                    $debtRecord = $this->route('debtRecord');
-                    if ($debtRecord->status !== DebtStatus::ACTIVE) {
-                        $fail('Catatan hanya bisa ditandai lunas jika statusnya "Aktif". Status saat ini: ' . $debtRecord->status->label());
-                    }
-                },
-            ],
-        ];
-    }
-
-    /**
-     * Prepare the data for validation.
-     */
-    protected function prepareForValidation(): void
-    {
-        // Trigger validation dengan dummy value
-        $this->merge([
-            'status' => true,
-        ]);
+        // Validation only - status check moved to controller
+        return [];
     }
 
     /**

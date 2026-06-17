@@ -11,6 +11,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Relations\HasOne;
+use Illuminate\Database\Eloquent\SoftDeletes;
 
 /**
  * @property int $id
@@ -37,6 +38,8 @@ use Illuminate\Database\Eloquent\Relations\HasOne;
 #[Fillable(['creator_id', 'counterpart_id', 'type', 'amount', 'description', 'transaction_date', 'due_date', 'status', 'confirmed_at', 'rejected_at', 'rejection_reason', 'settled_at'])]
 class DebtRecord extends Model
 {
+    use SoftDeletes;
+
     /**
      * Get the attributes that should be cast.
      *

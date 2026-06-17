@@ -6,6 +6,7 @@ use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\SoftDeletes;
 
 /**
  * @property int $id
@@ -25,6 +26,8 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 #[Fillable(['user_id', 'notification_type_id', 'debt_record_id', 'title', 'message', 'data', 'read_at'])]
 class Notification extends Model
 {
+    use SoftDeletes;
+
     /**
      * Get the attributes that should be cast.
      *

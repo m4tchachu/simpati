@@ -124,78 +124,79 @@ Route::prefix('v1')->group(function () {
 
         /**
          * =====================================================================
+         * DEBT RECORD ROUTES - Requires Authentication
+         * Authorization: Handled by Policy (creator, counterpart, admin)
+         * Middleware: auth:sanctum (no role restriction)
+         * =====================================================================
+         */
+        Route::prefix('debts')->name('debts.')->group(function () {
+            // List user's debts
+            Route::get('/', [DebtRecordController::class, 'index'])
+                ->name('index');
+
+            // Get overdue debts
+            Route::get('overdue', [DebtRecordController::class, 'overdue'])
+                ->name('overdue');
+
+            // Get upcoming debts
+            Route::get('upcoming', [DebtRecordController::class, 'upcoming'])
+                ->name('upcoming');
+
+            // Search debts
+            Route::get('search', [DebtRecordController::class, 'search'])
+                ->name('search');
+
+            // Get debt statistics
+            Route::get('stats', [DebtRecordController::class, 'stats'])
+                ->name('stats');
+
+            // Create debt record
+            Route::post('/', [DebtRecordController::class, 'store'])
+                ->name('store');
+
+            // Show single debt record
+            Route::get('{debtRecord}', [DebtRecordController::class, 'show'])
+                ->name('show')
+                ->where('debtRecord', '[0-9]+');
+
+            // Get debt history
+            Route::get('{debtRecord}/history', [DebtRecordController::class, 'history'])
+                ->name('history')
+                ->where('debtRecord', '[0-9]+');
+
+            // Update debt record (creator, pending only)
+            Route::put('{debtRecord}', [DebtRecordController::class, 'update'])
+                ->name('update')
+                ->where('debtRecord', '[0-9]+');
+
+            // Delete debt record (creator, pending only)
+            Route::delete('{debtRecord}', [DebtRecordController::class, 'destroy'])
+                ->name('destroy')
+                ->where('debtRecord', '[0-9]+');
+
+            // Confirm debt record (counterpart, pending only)
+            Route::post('{debtRecord}/confirm', [DebtRecordController::class, 'confirm'])
+                ->name('confirm')
+                ->where('debtRecord', '[0-9]+');
+
+            // Reject debt record (counterpart, pending only)
+            Route::post('{debtRecord}/reject', [DebtRecordController::class, 'reject'])
+                ->name('reject')
+                ->where('debtRecord', '[0-9]+');
+
+            // Settle debt record (creator or counterpart, active only)
+            Route::post('{debtRecord}/settle', [DebtRecordController::class, 'settle'])
+                ->name('settle')
+                ->where('debtRecord', '[0-9]+');
+        });
+
+        /**
+         * =====================================================================
          * MAHASISWA ROUTES - Requires Mahasiswa Role
          * Middleware: role:mahasiswa
          * =====================================================================
          */
         Route::middleware('role:mahasiswa')->group(function () {
-
-            /**
-             * Debt Record Routes
-             * Prefix: /debts
-             * Authorization: Creator, counterpart, and admin
-             */
-            Route::prefix('debts')->name('debts.')->group(function () {
-                // List user's debts
-                Route::get('/', [DebtRecordController::class, 'index'])
-                    ->name('index');
-
-                // Get overdue debts
-                Route::get('overdue', [DebtRecordController::class, 'overdue'])
-                    ->name('overdue');
-
-                // Get upcoming debts
-                Route::get('upcoming', [DebtRecordController::class, 'upcoming'])
-                    ->name('upcoming');
-
-                // Search debts
-                Route::get('search', [DebtRecordController::class, 'search'])
-                    ->name('search');
-
-                // Get debt statistics
-                Route::get('stats', [DebtRecordController::class, 'stats'])
-                    ->name('stats');
-
-                // Create debt record
-                Route::post('/', [DebtRecordController::class, 'store'])
-                    ->name('store');
-
-                // Show single debt record
-                Route::get('{debtRecord}', [DebtRecordController::class, 'show'])
-                    ->name('show')
-                    ->where('debtRecord', '[0-9]+');
-
-                // Get debt history
-                Route::get('{debtRecord}/history', [DebtRecordController::class, 'history'])
-                    ->name('history')
-                    ->where('debtRecord', '[0-9]+');
-
-                // Update debt record (creator, pending only)
-                Route::put('{debtRecord}', [DebtRecordController::class, 'update'])
-                    ->name('update')
-                    ->where('debtRecord', '[0-9]+');
-
-                // Delete debt record (creator, pending only)
-                Route::delete('{debtRecord}', [DebtRecordController::class, 'destroy'])
-                    ->name('destroy')
-                    ->where('debtRecord', '[0-9]+');
-
-                // Confirm debt record (counterpart, pending only)
-                Route::post('{debtRecord}/confirm', [DebtRecordController::class, 'confirm'])
-                    ->name('confirm')
-                    ->where('debtRecord', '[0-9]+');
-
-                // Reject debt record (counterpart, pending only)
-                Route::post('{debtRecord}/reject', [DebtRecordController::class, 'reject'])
-                    ->name('reject')
-                    ->where('debtRecord', '[0-9]+');
-
-                // Settle debt record (creator or counterpart, active only)
-                Route::post('{debtRecord}/settle', [DebtRecordController::class, 'settle'])
-                    ->name('settle')
-                    ->where('debtRecord', '[0-9]+');
-            });
-        });
 
         /**
          * =====================================================================

@@ -41,7 +41,7 @@ class StoreStudentRequest extends FormRequest
             ],
             'email' => [
                 'required',
-                'email:rfc,dns',
+                'email:rfc',
                 'unique:users,email',
                 'max:255',
             ],

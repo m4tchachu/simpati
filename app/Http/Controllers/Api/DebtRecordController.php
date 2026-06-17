@@ -2,12 +2,14 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Enums\DebtStatus;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\ConfirmDebtRecordRequest;
 use App\Http\Requests\RejectDebtRecordRequest;
 use App\Http\Requests\SettleDebtRecordRequest;
 use App\Http\Requests\StoreDebtRecordRequest;
 use App\Http\Requests\UpdateDebtRecordRequest;
+use App\Http\Responses\ApiResponse;
 use App\Http\Resources\DebtRecordResource;
 use App\Models\DebtRecord;
 use App\Services\DebtRecordService;
@@ -164,21 +166,32 @@ class DebtRecordController extends Controller
     {
         $this->authorize('confirm', $debtRecord);
 
+        // Validate status
+        if ($debtRecord->status !== DebtStatus::PENDING) {
+            return ApiResponse::error(
+                'Debt must be pending to confirm',
+                'DEBT_NOT_PENDING',
+                422
+            );
+        }
+
         try {
             $debt = $this->debtRecordService->confirmDebtRecord(
                 $debtRecord->id,
                 $request->user()
             );
 
-            return response()->json([
-                'message' => 'Debt record confirmed successfully',
-                'data' => new DebtRecordResource($debt),
-            ], 200);
+            return ApiResponse::success(
+                'Debt record confirmed successfully',
+                new DebtRecordResource($debt),
+                200
+            );
         } catch (\Exception $e) {
-            return response()->json([
-                'message' => 'Failed to confirm debt record',
-                'error' => $e->getMessage(),
-            ], 422);
+            return ApiResponse::error(
+                'Failed to confirm debt record',
+                'CONFIRM_FAILED',
+                422
+            );
         }
     }
 
@@ -193,6 +206,15 @@ class DebtRecordController extends Controller
     {
         $this->authorize('reject', $debtRecord);
 
+        // Validate status
+        if ($debtRecord->status !== DebtStatus::PENDING) {
+            return ApiResponse::error(
+                'Debt must be pending to reject',
+                'DEBT_NOT_PENDING',
+                422
+            );
+        }
+
         try {
             $debt = $this->debtRecordService->rejectDebtRecord(
                 $debtRecord->id,
@@ -200,15 +222,17 @@ class DebtRecordController extends Controller
                 $request->user()
             );
 
-            return response()->json([
-                'message' => 'Debt record rejected successfully',
-                'data' => new DebtRecordResource($debt),
-            ], 200);
+            return ApiResponse::success(
+                'Debt record rejected successfully',
+                new DebtRecordResource($debt),
+                200
+            );
         } catch (\Exception $e) {
-            return response()->json([
-                'message' => 'Failed to reject debt record',
-                'error' => $e->getMessage(),
-            ], 422);
+            return ApiResponse::error(
+                'Failed to reject debt record',
+                'REJECT_FAILED',
+                422
+            );
         }
     }
 
@@ -223,21 +247,32 @@ class DebtRecordController extends Controller
     {
         $this->authorize('settle', $debtRecord);
 
+        // Validate status
+        if ($debtRecord->status !== DebtStatus::ACTIVE) {
+            return ApiResponse::error(
+                'Debt must be active to settle',
+                'DEBT_NOT_ACTIVE',
+                422
+            );
+        }
+
         try {
             $debt = $this->debtRecordService->settleDebtRecord(
                 $debtRecord->id,
                 $request->user()
             );
 
-            return response()->json([
-                'message' => 'Debt record settled successfully',
-                'data' => new DebtRecordResource($debt),
-            ], 200);
+            return ApiResponse::success(
+                'Debt record settled successfully',
+                new DebtRecordResource($debt),
+                200
+            );
         } catch (\Exception $e) {
-            return response()->json([
-                'message' => 'Failed to settle debt record',
-                'error' => $e->getMessage(),
-            ], 422);
+            return ApiResponse::error(
+                'Failed to settle debt record',
+                'SETTLE_FAILED',
+                422
+            );
         }
     }
 
@@ -317,29 +352,48 @@ class DebtRecordController extends Controller
      */
     public function stats(Request $request): JsonResponse
     {
-        $stats = $this->debtRecordService->getDebtStats($request->user());
+        // Add input validation
+        $validated = $request->validate([
+            'type' => 'nullable|string|in:debt,receivable',
+            'status' => 'nullable|string|in:pending,active,rejected,settled',
+        ]);
 
-        return response()->json([
-            'message' => 'Debt statistics retrieved',
-            'data' => $stats,
-        ], 200);
+        $stats = $this->debtRecordService->getDebtStats($request->user(), $validated);
+
+        return ApiResponse::success(
+            'Debt statistics retrieved',
+            $stats,
+            200
+        );
     }
 
     /**
      * Get debt record history
      *
      * @param DebtRecord $debtRecord
+     * @param Request $request
      * @return JsonResponse
      */
-    public function history(DebtRecord $debtRecord): JsonResponse
+    public function history(DebtRecord $debtRecord, Request $request): JsonResponse
     {
         $this->authorize('view', $debtRecord);
 
-        $history = $this->debtRecordService->getDebtHistory($debtRecord->id);
+        // Add input validation
+        $validated = $request->validate([
+            'page' => 'nullable|integer|min:1',
+            'per_page' => 'nullable|integer|min:1|max:50',
+            'sort' => 'nullable|string|in:created_at,id',
+            'order' => 'nullable|string|in:asc,desc',
+        ]);
 
-        return response()->json([
-            'message' => 'Debt history retrieved successfully',
-            'data' => $history->map(function ($change) {
+        $history = $this->debtRecordService->getDebtHistory(
+            $debtRecord->id,
+            $validated
+        );
+
+        return ApiResponse::success(
+            'Debt history retrieved successfully',
+            $history->map(function ($change) {
                 return [
                     'id' => $change->id,
                     'old_status' => $change->old_status->value,
@@ -349,11 +403,12 @@ class DebtRecordController extends Controller
                     'reason' => $change->reason,
                     'changed_by' => [
                         'id' => $change->changedByUser->id,
-                        'name' => $change->changedByUser->name,
+                        'name' => $change->changedByUser?->name ?? 'Unknown',
                     ],
                     'created_at' => $change->created_at,
                 ];
             }),
-        ], 200);
+            200
+        );
     }
 }

@@ -327,21 +327,42 @@ class DebtRecordService
      * @param User $user
      * @return array
      */
-    public function getDebtStats(User $user): array
+    /**
+     * Get debt statistics for a user
+     * Uses database aggregation to avoid N+1 queries
+     *
+     * @param User $user
+     * @param array{type?: string, status?: string} $filters
+     * @return array
+     */
+    public function getDebtStats(User $user, array $filters = []): array
     {
-        $allDebts = $user->getAllDebts();
+        // Build base query
+        $query = DebtRecord::where(function ($q) use ($user) {
+            $q->where('creator_id', $user->id)
+                ->orWhere('counterpart_id', $user->id);
+        });
 
+        // Apply optional filters
+        if (!empty($filters['type'])) {
+            $query->where('type', DebtType::from($filters['type'])->value);
+        }
+        if (!empty($filters['status'])) {
+            $query->where('status', DebtStatus::from($filters['status'])->value);
+        }
+
+        // Use aggregation directly in database
         return [
-            'total_debt' => (float) $allDebts->where('type', DebtType::DEBT)->sum('amount'),
-            'total_receivable' => (float) $allDebts->where('type', DebtType::RECEIVABLE)->sum('amount'),
-            'active_debt_count' => $allDebts->where('type', DebtType::DEBT)
-                ->where('status', DebtStatus::ACTIVE)->count(),
-            'active_receivable_count' => $allDebts->where('type', DebtType::RECEIVABLE)
-                ->where('status', DebtStatus::ACTIVE)->count(),
-            'pending_count' => $allDebts->where('status', DebtStatus::PENDING)->count(),
-            'rejected_count' => $allDebts->where('status', DebtStatus::REJECTED)->count(),
-            'settled_count' => $allDebts->where('status', DebtStatus::SETTLED)->count(),
-            'overdue_count' => $allDebts->where('status', DebtStatus::ACTIVE)
+            'total_debt' => (float) (clone $query)->where('type', DebtType::DEBT->value)->sum('amount'),
+            'total_receivable' => (float) (clone $query)->where('type', DebtType::RECEIVABLE->value)->sum('amount'),
+            'active_debt_count' => (clone $query)->where('type', DebtType::DEBT->value)
+                ->where('status', DebtStatus::ACTIVE->value)->count(),
+            'active_receivable_count' => (clone $query)->where('type', DebtType::RECEIVABLE->value)
+                ->where('status', DebtStatus::ACTIVE->value)->count(),
+            'pending_count' => (clone $query)->where('status', DebtStatus::PENDING->value)->count(),
+            'rejected_count' => (clone $query)->where('status', DebtStatus::REJECTED->value)->count(),
+            'settled_count' => (clone $query)->where('status', DebtStatus::SETTLED->value)->count(),
+            'overdue_count' => (clone $query)->where('status', DebtStatus::ACTIVE->value)
                 ->where('due_date', '<', now())->count(),
         ];
     }
@@ -360,7 +381,8 @@ class DebtRecordService
             $q->where('creator_id', $user->id)
                 ->orWhere('counterpart_id', $user->id);
         })->where(function ($q) use ($query) {
-            $q->where('description', 'like', "%{$query}%")
+            // Use FULLTEXT search for better performance and relevance
+            $q->whereRaw("MATCH(description) AGAINST(? IN BOOLEAN MODE)", [$query . '*'])
                 ->orWhereHas('creator', fn ($q) => $q->where('name', 'like', "%{$query}%"))
                 ->orWhereHas('counterpart', fn ($q) => $q->where('name', 'like', "%{$query}%"));
         })->with('creator', 'counterpart')
@@ -370,12 +392,12 @@ class DebtRecordService
                 return [
                     'id' => $debt->id,
                     'type' => $debt->type->label(),
-                    'amount' => $debt->amount,
+                    'amount' => (float) $debt->amount,
                     'description' => $debt->description,
                     'status' => $debt->status->label(),
-                    'due_date' => $debt->due_date,
-                    'creator' => $debt->creator->name,
-                    'counterpart' => $debt->counterpart->name,
+                    'due_date' => $debt->due_date->format('Y-m-d'),
+                    'creator' => $debt->creator?->name ?? 'Unknown',
+                    'counterpart' => $debt->counterpart?->name ?? 'Unknown',
                 ];
             })
             ->toArray();
@@ -385,14 +407,20 @@ class DebtRecordService
      * Get debt record history
      *
      * @param int $debtRecordId
+     * @param array{page?: int, per_page?: int, sort?: string, order?: string} $filters
      * @return Collection
      */
-    public function getDebtHistory(int $debtRecordId): Collection
+    public function getDebtHistory(int $debtRecordId, array $filters = []): Collection
     {
-        return DebtStatusChange::where('debt_record_id', $debtRecordId)
-            ->with('changedByUser')
-            ->orderBy('created_at', 'desc')
-            ->get();
+        $query = DebtStatusChange::where('debt_record_id', $debtRecordId)
+            ->with('changedByUser');
+
+        // Apply sorting
+        $sort = $filters['sort'] ?? 'created_at';
+        $order = $filters['order'] ?? 'desc';
+        $query->orderBy($sort, $order);
+
+        return $query->get();
     }
 
     /**
