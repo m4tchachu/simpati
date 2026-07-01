@@ -158,7 +158,7 @@ class StudentService
         // Log deletion
         $this->logAudit($student, 'delete');
 
-        return $student->delete();
+        return $student->forceDelete();
     }
 
     /**

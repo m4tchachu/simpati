@@ -213,4 +213,23 @@ class StudentController extends Controller
             'count' => count($students),
         ], 200);
     }
+
+    /**
+     * Toggle active status of student
+     *
+     * @param User $student
+     * @return JsonResponse
+     */
+    public function toggleStatus(User $student): JsonResponse
+    {
+        $this->authorize('update', $student);
+
+        $student->is_active = !$student->is_active;
+        $student->save();
+
+        return response()->json([
+            'message' => $student->is_active ? 'Akun mahasiswa diaktifkan' : 'Akun mahasiswa dinonaktifkan',
+            'data' => new StudentResource($student),
+        ], 200);
+    }
 }

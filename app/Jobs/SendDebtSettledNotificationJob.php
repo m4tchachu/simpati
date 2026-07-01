@@ -30,21 +30,14 @@ class SendDebtSettledNotificationJob implements ShouldQueue
      */
     public function handle(): void
     {
-        // Send notification to both creator and counterpart
-        $this->creator->notify(
-            new DebtSettledNotification(
-                $this->debtRecord,
-                $this->creator,
-                $this->counterpart,
-            )
-        );
+        // Find the user who did the settlement from status changes
+        $statusChange = $this->debtRecord->statusChanges()
+            ->where('new_status', \App\Enums\DebtStatus::SETTLED->value)
+            ->latest()
+            ->first();
+        
+        $settledByUser = $statusChange ? $statusChange->changedByUser : $this->creator;
 
-        $this->counterpart->notify(
-            new DebtSettledNotification(
-                $this->debtRecord,
-                $this->creator,
-                $this->counterpart,
-            )
-        );
+        app(\App\Services\NotificationService::class)->notifyDebtSettled($this->debtRecord, $settledByUser);
     }
 }

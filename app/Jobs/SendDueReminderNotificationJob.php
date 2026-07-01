@@ -30,13 +30,6 @@ class SendDueReminderNotificationJob implements ShouldQueue
      */
     public function handle(): void
     {
-        // Send reminder notification to user
-        $this->notifyUser->notify(
-            new DueReminderNotification(
-                $this->debtRecord,
-                $this->notifyUser,
-                $this->daysBefore,
-            )
-        );
+        app(\App\Services\NotificationService::class)->sendDueReminder($this->debtRecord, $this->notifyUser, $this->daysBefore);
     }
 }

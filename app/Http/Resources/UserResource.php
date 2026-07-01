@@ -20,6 +20,7 @@ class UserResource extends JsonResource
             'email' => $this->email,
             'role' => $this->role->value,
             'role_label' => $this->role->label(),
+            'is_active' => (bool) ($this->is_active ?? true),
             'nim' => $this->nim,
             'study_program_id' => $this->study_program_id,
             'study_program' => $this->whenLoaded('studyProgram', fn () => [

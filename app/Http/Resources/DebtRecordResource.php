@@ -16,8 +16,12 @@ class DebtRecordResource extends JsonResource
     {
         return [
             'id' => $this->id,
-            'type' => $this->type->value,
-            'type_label' => $this->type->label(),
+            'type' => ($request->user() && $this->creator_id !== $request->user()->id)
+                ? ($this->type === \App\Enums\DebtType::DEBT ? \App\Enums\DebtType::RECEIVABLE->value : \App\Enums\DebtType::DEBT->value)
+                : $this->type->value,
+            'type_label' => ($request->user() && $this->creator_id !== $request->user()->id)
+                ? ($this->type === \App\Enums\DebtType::DEBT ? \App\Enums\DebtType::RECEIVABLE->label() : \App\Enums\DebtType::DEBT->label())
+                : $this->type->label(),
             'amount' => (float) $this->amount,
             'description' => $this->description,
             'status' => $this->status->value,

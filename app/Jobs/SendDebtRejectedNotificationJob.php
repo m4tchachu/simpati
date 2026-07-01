@@ -31,14 +31,6 @@ class SendDebtRejectedNotificationJob implements ShouldQueue
      */
     public function handle(): void
     {
-        // Send notification to creator (pembuat hutang/piutang)
-        $this->creator->notify(
-            new DebtRejectedNotification(
-                $this->debtRecord,
-                $this->creator,
-                $this->counterpart,
-                $this->reason,
-            )
-        );
+        app(\App\Services\NotificationService::class)->notifyDebtRejected($this->debtRecord);
     }
 }

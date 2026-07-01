@@ -88,10 +88,6 @@ Route::prefix('v1')->group(function () {
                 Route::get('/', [StudentController::class, 'index'])
                     ->name('index');
 
-                // Search students
-                Route::get('search', [StudentController::class, 'search'])
-                    ->name('search');
-
                 // Export students
                 Route::post('export', [StudentController::class, 'export'])
                     ->name('export');
@@ -119,8 +115,17 @@ Route::prefix('v1')->group(function () {
                 Route::delete('{student}', [StudentController::class, 'destroy'])
                     ->name('destroy')
                     ->where('student', '[0-9]+');
+
+                // Toggle active status
+                Route::post('{student}/toggle-status', [StudentController::class, 'toggleStatus'])
+                    ->name('toggle-status')
+                    ->where('student', '[0-9]+');
             });
         });
+
+        // Search students (shared auth route, policy determines detailed permissions)
+        Route::get('students/search', [StudentController::class, 'search'])
+            ->name('students.search');
 
         /**
          * =====================================================================
@@ -197,6 +202,8 @@ Route::prefix('v1')->group(function () {
          * =====================================================================
          */
         Route::middleware('role:mahasiswa')->group(function () {
+            // Mahasiswa-specific routes can be added here.
+        });
 
         /**
          * =====================================================================
@@ -287,6 +294,14 @@ Route::prefix('v1')->group(function () {
             // Get charts data
             Route::get('charts-data', [DashboardController::class, 'chartsData'])
                 ->name('chartsData');
+        });
+
+        // Get study programs (shared auth route)
+        Route::get('study-programs', function () {
+            return response()->json([
+                'message' => 'Study programs retrieved successfully',
+                'data' => \App\Models\StudyProgram::all()
+            ]);
         });
 
     });

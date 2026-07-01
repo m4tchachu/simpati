@@ -30,13 +30,6 @@ class SendDebtCreatedNotificationJob implements ShouldQueue
      */
     public function handle(): void
     {
-        // Send notification to counterpart (penerima hutang/piutang)
-        $this->counterpart->notify(
-            new DebtCreatedNotification(
-                $this->debtRecord,
-                $this->creator,
-                $this->counterpart,
-            )
-        );
+        app(\App\Services\NotificationService::class)->notifyDebtCreated($this->debtRecord);
     }
 }

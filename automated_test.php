@@ -48,6 +48,20 @@ class APITester {
         
         // Clear existing test data
         User::where('email', 'like', 'test_%@test.com')->forceDelete();
+
+        // Seed notification types
+        $types = [
+            ['code' => 'debt_created', 'name' => 'Transaksi Baru', 'description' => 'Notifikasi ketika ada transaksi baru dibuat'],
+            ['code' => 'debt_confirmed', 'name' => 'Transaksi Dikonfirmasi', 'description' => 'Notifikasi ketika transaksi dikonfirmasi oleh penerima'],
+            ['code' => 'debt_rejected', 'name' => 'Transaksi Ditolak', 'description' => 'Notifikasi ketika transaksi ditolak oleh penerima'],
+            ['code' => 'debt_updated', 'name' => 'Transaksi Diperbarui', 'description' => 'Notifikasi ketika transaksi diperbarui oleh pembuat'],
+            ['code' => 'debt_settled', 'name' => 'Transaksi Diselesaikan', 'description' => 'Notifikasi ketika transaksi diselesaikan/dilunasi'],
+            ['code' => 'reminder_due_date', 'name' => 'Pengingat Jatuh Tempo', 'description' => 'Notifikasi pengingat tanggal jatuh tempo'],
+        ];
+        
+        foreach ($types as $t) {
+            \App\Models\NotificationType::firstOrCreate(['code' => $t['code']], $t);
+        }
         
         // Get or create study program
         $studyProgram = \App\Models\StudyProgram::firstOrCreate(
@@ -251,7 +265,7 @@ class APITester {
             ], $this->mahasiswaToken);
             
             if ($response['code'] !== 201) {
-                throw new Exception("Expected 201, got {$response['code']}");
+                throw new Exception("Expected 201, got {$response['code']}. Response: " . json_encode($response['data']));
             }
             
             if (!isset($response['data']['data']['id'])) {
@@ -278,7 +292,7 @@ class APITester {
         });
         
         // Test 3: Show Debt
-        $this->test('GET /debts/{id}', function() use ($debtId) {
+        $this->test('GET /debts/{id}', function() use (&$debtId) {
             $response = $this->makeRequest('GET', '/debts/' . $debtId, null, $this->mahasiswaToken);
             
             if ($response['code'] !== 200) {

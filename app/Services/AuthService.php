@@ -27,6 +27,12 @@ class AuthService
             ]);
         }
 
+        if (isset($user->is_active) && !$user->is_active) {
+            throw ValidationException::withMessages([
+                'email' => 'Akun Anda dinonaktifkan oleh admin.',
+            ]);
+        }
+
         $token = $user->createToken(
             name: 'auth_token',
             expiresAt: now()->addDays(7)

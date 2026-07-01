@@ -337,32 +337,45 @@ class DebtRecordService
      */
     public function getDebtStats(User $user, array $filters = []): array
     {
-        // Build base query
-        $query = DebtRecord::where(function ($q) use ($user) {
-            $q->where('creator_id', $user->id)
-                ->orWhere('counterpart_id', $user->id);
+        // Debts for this user (where they owe money)
+        $debtSumQuery = DebtRecord::where(function ($query) use ($user) {
+            $query->where(function ($q) use ($user) {
+                $q->where('creator_id', $user->id)->where('type', DebtType::DEBT->value);
+            })->orWhere(function ($q) use ($user) {
+                $q->where('counterpart_id', $user->id)->where('type', DebtType::RECEIVABLE->value);
+            });
         });
 
-        // Apply optional filters
-        if (!empty($filters['type'])) {
-            $query->where('type', DebtType::from($filters['type'])->value);
-        }
+        // Receivables for this user (where they are owed money)
+        $receivableSumQuery = DebtRecord::where(function ($query) use ($user) {
+            $query->where(function ($q) use ($user) {
+                $q->where('creator_id', $user->id)->where('type', DebtType::RECEIVABLE->value);
+            })->orWhere(function ($q) use ($user) {
+                $q->where('counterpart_id', $user->id)->where('type', DebtType::DEBT->value);
+            });
+        });
+
+        // Apply filters if needed (e.g. status)
         if (!empty($filters['status'])) {
-            $query->where('status', DebtStatus::from($filters['status'])->value);
+            $debtSumQuery->where('status', DebtStatus::from($filters['status'])->value);
+            $receivableSumQuery->where('status', DebtStatus::from($filters['status'])->value);
         }
 
-        // Use aggregation directly in database
         return [
-            'total_debt' => (float) (clone $query)->where('type', DebtType::DEBT->value)->sum('amount'),
-            'total_receivable' => (float) (clone $query)->where('type', DebtType::RECEIVABLE->value)->sum('amount'),
-            'active_debt_count' => (clone $query)->where('type', DebtType::DEBT->value)
-                ->where('status', DebtStatus::ACTIVE->value)->count(),
-            'active_receivable_count' => (clone $query)->where('type', DebtType::RECEIVABLE->value)
-                ->where('status', DebtStatus::ACTIVE->value)->count(),
-            'pending_count' => (clone $query)->where('status', DebtStatus::PENDING->value)->count(),
-            'rejected_count' => (clone $query)->where('status', DebtStatus::REJECTED->value)->count(),
-            'settled_count' => (clone $query)->where('status', DebtStatus::SETTLED->value)->count(),
-            'overdue_count' => (clone $query)->where('status', DebtStatus::ACTIVE->value)
+            'total_debt' => (float) $debtSumQuery->clone()->sum('amount'),
+            'total_receivable' => (float) $receivableSumQuery->clone()->sum('amount'),
+            'active_debt_count' => $debtSumQuery->clone()->where('status', DebtStatus::ACTIVE->value)->count(),
+            'active_receivable_count' => $receivableSumQuery->clone()->where('status', DebtStatus::ACTIVE->value)->count(),
+            'pending_count' => DebtRecord::where(function ($q) use ($user) {
+                $q->where('creator_id', $user->id)->orWhere('counterpart_id', $user->id);
+            })->where('status', DebtStatus::PENDING->value)->count(),
+            'rejected_count' => DebtRecord::where(function ($q) use ($user) {
+                $q->where('creator_id', $user->id)->orWhere('counterpart_id', $user->id);
+            })->where('status', DebtStatus::REJECTED->value)->count(),
+            'settled_count' => DebtRecord::where(function ($q) use ($user) {
+                $q->where('creator_id', $user->id)->orWhere('counterpart_id', $user->id);
+            })->where('status', DebtStatus::SETTLED->value)->count(),
+            'overdue_count' => $debtSumQuery->clone()->where('status', DebtStatus::ACTIVE->value)
                 ->where('due_date', '<', now())->count(),
         ];
     }

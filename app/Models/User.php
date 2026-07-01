@@ -35,7 +35,7 @@ use Laravel\Sanctum\HasApiTokens;
  * @property-read Collection<AuditLog> $auditLogs
  * @property-read Collection<ReminderLog> $reminderLogs
  */
-#[Fillable(['name', 'email', 'password', 'role', 'nim', 'study_program_id', 'fcm_token'])]
+#[Fillable(['name', 'email', 'password', 'role', 'nim', 'study_program_id', 'fcm_token', 'is_active'])]
 #[Hidden(['password', 'remember_token'])]
 class User extends Authenticatable
 {
@@ -52,6 +52,7 @@ class User extends Authenticatable
         return [
             'password' => 'hashed',
             'role' => UserRole::class,
+            'is_active' => 'boolean',
         ];
     }
 

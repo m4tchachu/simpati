@@ -21,6 +21,7 @@ class StudentResource extends JsonResource
             'email' => $this->email,
             'role' => $this->role->value,
             'role_label' => $this->role->label(),
+            'is_active' => (bool) ($this->is_active ?? true),
             'study_program' => $this->whenLoaded('studyProgram', fn () => [
                 'id' => $this->studyProgram->id,
                 'code' => $this->studyProgram->code,

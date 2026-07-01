@@ -25,13 +25,44 @@ class DashboardService
      */
     public function getDashboard(User $user): array
     {
+        $userData = [
+            'id' => $user->id,
+            'name' => $user->name,
+            'email' => $user->email,
+            'role' => $user->role->value,
+        ];
+
+        if ($user->isAdmin()) {
+            $totalStudents = User::where('role', \App\Enums\UserRole::MAHASISWA->value)->count();
+            $activeStudents = User::where('role', \App\Enums\UserRole::MAHASISWA->value)
+                ->where('is_active', true)
+                ->count();
+            $inactiveStudents = User::where('role', \App\Enums\UserRole::MAHASISWA->value)
+                ->where('is_active', false)
+                ->count();
+
+            $byProgram = DB::table('users')
+                ->join('study_programs', 'users.study_program_id', '=', 'study_programs.id')
+                ->where('users.role', \App\Enums\UserRole::MAHASISWA->value)
+                ->whereNull('users.deleted_at')
+                ->groupBy('study_programs.name')
+                ->select('study_programs.name', DB::raw('count(*) as count'))
+                ->pluck('count', 'study_programs.name')
+                ->toArray();
+
+            return [
+                'user' => $userData,
+                'student_stats' => [
+                    'total_students' => $totalStudents,
+                    'active_students' => $activeStudents,
+                    'inactive_students' => $inactiveStudents,
+                    'by_program' => $byProgram,
+                ],
+            ];
+        }
+
         return [
-            'user' => [
-                'id' => $user->id,
-                'name' => $user->name,
-                'email' => $user->email,
-                'role' => $user->role->value,
-            ],
+            'user' => $userData,
             'debt_stats' => $this->getDebtStats($user),
             'notifications' => $this->getNotificationSummary($user),
             'recent_transactions' => $this->getRecentTransactions($user, 5),
@@ -51,41 +82,49 @@ class DashboardService
      */
     public function getDebtStats(User $user): array
     {
-        // Query all debts for user (creator or counterpart)
+        // Debts for this user (where they owe money)
+        $debtSumQuery = DebtRecord::where(function ($query) use ($user) {
+            $query->where(function ($q) use ($user) {
+                $q->where('creator_id', $user->id)->where('type', DebtType::DEBT->value);
+            })->orWhere(function ($q) use ($user) {
+                $q->where('counterpart_id', $user->id)->where('type', DebtType::RECEIVABLE->value);
+            });
+        });
+
+        // Receivables for this user (where they are owed money)
+        $receivableSumQuery = DebtRecord::where(function ($query) use ($user) {
+            $query->where(function ($q) use ($user) {
+                $q->where('creator_id', $user->id)->where('type', DebtType::RECEIVABLE->value);
+            })->orWhere(function ($q) use ($user) {
+                $q->where('counterpart_id', $user->id)->where('type', DebtType::DEBT->value);
+            });
+        });
+
+        $totalDebt = (float) $debtSumQuery->clone()->sum('amount');
+        $totalReceivable = (float) $receivableSumQuery->clone()->sum('amount');
+
+        $activeDebtAmount = (float) $debtSumQuery->clone()
+            ->where('status', DebtStatus::ACTIVE->value)
+            ->sum('amount');
+
+        $activeReceivableAmount = (float) $receivableSumQuery->clone()
+            ->where('status', DebtStatus::ACTIVE->value)
+            ->sum('amount');
+
+        // All debts query involving this user for general status counts
         $allDebtsQuery = DebtRecord::where(function ($q) use ($user) {
             $q->where('creator_id', $user->id)
                 ->orWhere('counterpart_id', $user->id);
         });
 
-        // Use database aggregation instead of loading all records into memory
-        $totalDebt = (float) $allDebtsQuery->clone()
-            ->where('type', DebtType::DEBT->value)
-            ->sum('amount');
-
-        $totalReceivable = (float) $allDebtsQuery->clone()
-            ->where('type', DebtType::RECEIVABLE->value)
-            ->sum('amount');
-
-        $activeDebtAmount = (float) $allDebtsQuery->clone()
-            ->where('type', DebtType::DEBT->value)
-            ->where('status', DebtStatus::ACTIVE->value)
-            ->sum('amount');
-
-        $activeReceivableAmount = (float) $allDebtsQuery->clone()
-            ->where('type', DebtType::RECEIVABLE->value)
-            ->where('status', DebtStatus::ACTIVE->value)
-            ->sum('amount');
-
         return [
             'total_debt' => $totalDebt,
             'total_receivable' => $totalReceivable,
             'net_balance' => $totalReceivable - $totalDebt,
-            'active_debt_count' => $allDebtsQuery->clone()
-                ->where('type', DebtType::DEBT->value)
+            'active_debt_count' => $debtSumQuery->clone()
                 ->where('status', DebtStatus::ACTIVE->value)
                 ->count(),
-            'active_receivable_count' => $allDebtsQuery->clone()
-                ->where('type', DebtType::RECEIVABLE->value)
+            'active_receivable_count' => $receivableSumQuery->clone()
                 ->where('status', DebtStatus::ACTIVE->value)
                 ->count(),
             'active_debt_amount' => $activeDebtAmount,
@@ -93,7 +132,7 @@ class DashboardService
             'pending_count' => $allDebtsQuery->clone()
                 ->where('status', DebtStatus::PENDING->value)
                 ->count(),
-            'overdue_count' => $allDebtsQuery->clone()
+            'overdue_count' => $debtSumQuery->clone()
                 ->where('status', DebtStatus::ACTIVE->value)
                 ->where('due_date', '<', now())
                 ->count(),
@@ -114,7 +153,24 @@ class DashboardService
      */
     public function getNotificationSummary(User $user): array
     {
-        return $this->notificationService->getNotificationStats($user);
+        $stats = $this->notificationService->getNotificationStats($user);
+        
+        $stats['latest'] = \App\Models\Notification::where('user_id', $user->id)
+            ->with('type')
+            ->latest()
+            ->limit(3)
+            ->get()
+            ->map(function ($n) {
+                return [
+                    'id' => $n->id,
+                    'title' => $n->title,
+                    'message' => $n->message,
+                    'created_at' => $n->created_at->diffForHumans(),
+                ];
+            })
+            ->toArray();
+
+        return $stats;
     }
 
     /**
@@ -134,16 +190,21 @@ class DashboardService
             ->limit($limit)
             ->get()
             ->map(function ($debt) use ($user) {
+                $isCreator = $debt->creator_id === $user->id;
+                $perspectiveType = $isCreator ? $debt->type : ($debt->type === DebtType::DEBT ? DebtType::RECEIVABLE : DebtType::DEBT);
+
                 return [
                     'id' => $debt->id,
-                    'type' => $debt->type->label(),
+                    'type' => $debt->type->value,
+                    'type_label' => $perspectiveType->label(),
                     'amount' => $debt->amount,
-                    'status' => $debt->status->label(),
+                    'status' => $debt->status->value,
+                    'status_label' => $debt->status->label(),
                     'status_color' => $debt->status->color(),
                     'description' => substr($debt->description, 0, 50) . (strlen($debt->description) > 50 ? '...' : ''),
                     'creator' => $debt->creator->name,
                     'counterpart' => $debt->counterpart->name,
-                    'role' => $debt->creator_id === $user->id ? 'creator' : 'counterpart',
+                    'role' => $isCreator ? 'creator' : 'counterpart',
                     'created_at' => $debt->created_at->diffForHumans(),
                     'due_date' => $debt->due_date,
                 ];
@@ -160,9 +221,12 @@ class DashboardService
      */
     public function getUpcomingDebtDates(User $user, int $days = 7): array
     {
-        return DebtRecord::where(function ($q) use ($user) {
-            $q->where('creator_id', $user->id)
-                ->orWhere('counterpart_id', $user->id);
+        return DebtRecord::where(function ($query) use ($user) {
+            $query->where(function ($q) use ($user) {
+                $q->where('creator_id', $user->id)->where('type', DebtType::DEBT->value);
+            })->orWhere(function ($q) use ($user) {
+                $q->where('counterpart_id', $user->id)->where('type', DebtType::RECEIVABLE->value);
+            });
         })->where('status', DebtStatus::ACTIVE)
             ->whereBetween('due_date', [now(), now()->addDays($days)])
             ->with('creator', 'counterpart')
@@ -195,9 +259,12 @@ class DashboardService
      */
     public function getOverdueDebts(User $user): array
     {
-        return DebtRecord::where(function ($q) use ($user) {
-            $q->where('creator_id', $user->id)
-                ->orWhere('counterpart_id', $user->id);
+        return DebtRecord::where(function ($query) use ($user) {
+            $query->where(function ($q) use ($user) {
+                $q->where('creator_id', $user->id)->where('type', DebtType::DEBT->value);
+            })->orWhere(function ($q) use ($user) {
+                $q->where('counterpart_id', $user->id)->where('type', DebtType::RECEIVABLE->value);
+            });
         })->where('status', DebtStatus::ACTIVE)
             ->where('due_date', '<', now())
             ->with('creator', 'counterpart')
@@ -324,15 +391,21 @@ class DashboardService
      */
     private function getDebtTypeDistribution(User $user): array
     {
-        $debtQuery = DebtRecord::where(function ($q) use ($user) {
-            $q->where('creator_id', $user->id)
-                ->orWhere('counterpart_id', $user->id);
-        })->where('type', DebtType::DEBT->value);
+        $debtQuery = DebtRecord::where(function ($query) use ($user) {
+            $query->where(function ($q) use ($user) {
+                $q->where('creator_id', $user->id)->where('type', DebtType::DEBT->value);
+            })->orWhere(function ($q) use ($user) {
+                $q->where('counterpart_id', $user->id)->where('type', DebtType::RECEIVABLE->value);
+            });
+        });
 
-        $receivableQuery = DebtRecord::where(function ($q) use ($user) {
-            $q->where('creator_id', $user->id)
-                ->orWhere('counterpart_id', $user->id);
-        })->where('type', DebtType::RECEIVABLE->value);
+        $receivableQuery = DebtRecord::where(function ($query) use ($user) {
+            $query->where(function ($q) use ($user) {
+                $q->where('creator_id', $user->id)->where('type', DebtType::RECEIVABLE->value);
+            })->orWhere(function ($q) use ($user) {
+                $q->where('counterpart_id', $user->id)->where('type', DebtType::DEBT->value);
+            });
+        });
 
         return [
             [
@@ -372,18 +445,22 @@ class DashboardService
             $startDate = Carbon::createFromFormat('Y-m', $month['label'])->startOfMonth();
             $endDate = Carbon::createFromFormat('Y-m', $month['label'])->endOfMonth();
 
-            $debtAmount = DebtRecord::where(function ($q) use ($user) {
-                $q->where('creator_id', $user->id)
-                    ->orWhere('counterpart_id', $user->id);
-            })->where('type', DebtType::DEBT)
-                ->whereBetween('created_at', [$startDate, $endDate])
+            $debtAmount = DebtRecord::where(function ($query) use ($user) {
+                $query->where(function ($q) use ($user) {
+                    $q->where('creator_id', $user->id)->where('type', DebtType::DEBT->value);
+                })->orWhere(function ($q) use ($user) {
+                    $q->where('counterpart_id', $user->id)->where('type', DebtType::RECEIVABLE->value);
+                });
+            })->whereBetween('created_at', [$startDate, $endDate])
                 ->sum('amount');
 
-            $receivableAmount = DebtRecord::where(function ($q) use ($user) {
-                $q->where('creator_id', $user->id)
-                    ->orWhere('counterpart_id', $user->id);
-            })->where('type', DebtType::RECEIVABLE)
-                ->whereBetween('created_at', [$startDate, $endDate])
+            $receivableAmount = DebtRecord::where(function ($query) use ($user) {
+                $query->where(function ($q) use ($user) {
+                    $q->where('creator_id', $user->id)->where('type', DebtType::RECEIVABLE->value);
+                })->orWhere(function ($q) use ($user) {
+                    $q->where('counterpart_id', $user->id)->where('type', DebtType::DEBT->value);
+                });
+            })->whereBetween('created_at', [$startDate, $endDate])
                 ->sum('amount');
 
             $trends[] = [
@@ -466,18 +543,24 @@ class DashboardService
         $thisMonth = now()->startOfMonth();
         $lastMonth = now()->subMonth()->startOfMonth();
 
-        $thisMonthAmount = DebtRecord::where(function ($q) use ($user) {
-            $q->where('creator_id', $user->id)
-                ->orWhere('counterpart_id', $user->id);
-        })->where('type', $type)
-            ->whereBetween('created_at', [$thisMonth, now()])
+        $thisMonthAmount = DebtRecord::where(function ($query) use ($user, $type) {
+            $query->where(function ($q) use ($user, $type) {
+                $q->where('creator_id', $user->id)->where('type', $type->value);
+            })->orWhere(function ($q) use ($user, $type) {
+                $oppositeType = $type === DebtType::DEBT ? DebtType::RECEIVABLE->value : DebtType::DEBT->value;
+                $q->where('counterpart_id', $user->id)->where('type', $oppositeType);
+            });
+        })->whereBetween('created_at', [$thisMonth, now()])
             ->sum('amount');
 
-        $lastMonthAmount = DebtRecord::where(function ($q) use ($user) {
-            $q->where('creator_id', $user->id)
-                ->orWhere('counterpart_id', $user->id);
-        })->where('type', $type)
-            ->whereBetween('created_at', [$lastMonth, $thisMonth])
+        $lastMonthAmount = DebtRecord::where(function ($query) use ($user, $type) {
+            $query->where(function ($q) use ($user, $type) {
+                $q->where('creator_id', $user->id)->where('type', $type->value);
+            })->orWhere(function ($q) use ($user, $type) {
+                $oppositeType = $type === DebtType::DEBT ? DebtType::RECEIVABLE->value : DebtType::DEBT->value;
+                $q->where('counterpart_id', $user->id)->where('type', $oppositeType);
+            });
+        })->whereBetween('created_at', [$lastMonth, $thisMonth])
             ->sum('amount');
 
         if ($lastMonthAmount == 0) {
