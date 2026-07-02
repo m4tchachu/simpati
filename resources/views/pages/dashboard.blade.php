@@ -98,7 +98,40 @@
                 document.getElementById('cardTotalStudents').textContent = data.student_stats?.total_students ?? '-';
                 document.getElementById('cardActiveStudents').textContent = data.student_stats?.active_students ?? '-';
                 document.getElementById('cardInactiveStudents').textContent = data.student_stats?.inactive_students ?? '-';
-                document.getElementById('programStats').textContent = JSON.stringify(data.student_stats?.by_program || {});
+                const byProgram = data.student_stats?.by_program || {};
+                const totalStudents = data.student_stats?.total_students || 1;
+                const programStatsContainer = document.getElementById('programStats');
+                programStatsContainer.innerHTML = '';
+                
+                if (Object.keys(byProgram).length === 0) {
+                    programStatsContainer.innerHTML = '<p class="text-slate-500">Tidak ada data program studi.</p>';
+                } else {
+                    const gridDiv = document.createElement('div');
+                    gridDiv.className = 'grid gap-6 sm:grid-cols-2 lg:grid-cols-3 mt-4';
+                    
+                    Object.entries(byProgram).forEach(([programName, count]) => {
+                        const percent = ((count / totalStudents) * 100).toFixed(0);
+                        const card = document.createElement('div');
+                        card.className = 'rounded-3xl border border-slate-200 bg-slate-50 p-6 flex flex-col justify-between';
+                        card.innerHTML = `
+                            <div>
+                                <p class="text-sm font-semibold text-slate-900">${programName}</p>
+                                <p class="mt-3 text-2xl font-bold text-slate-900">${count} <span class="text-xs font-normal text-slate-500">Mahasiswa</span></p>
+                            </div>
+                            <div class="mt-4">
+                                <div class="flex justify-between text-xs text-slate-500 mb-1">
+                                    <span>Persentase</span>
+                                    <span class="font-semibold">${percent}%</span>
+                                </div>
+                                <div class="w-full bg-slate-200 rounded-full h-1.5">
+                                    <div class="bg-slate-900 h-1.5 rounded-full" style="width: ${percent}%"></div>
+                                </div>
+                            </div>
+                        `;
+                        gridDiv.appendChild(card);
+                    });
+                    programStatsContainer.appendChild(gridDiv);
+                }
 
                 // Export functionality
                 const exportBtn = document.getElementById('exportStudents');

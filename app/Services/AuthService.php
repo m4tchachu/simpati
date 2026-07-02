@@ -29,7 +29,7 @@ class AuthService
 
         if (isset($user->is_active) && !$user->is_active) {
             throw ValidationException::withMessages([
-                'email' => 'Akun Anda dinonaktifkan oleh admin.',
+                'email' => 'Akun Anda non-aktif, silahkan hubungi admin',
             ]);
         }
 

@@ -52,8 +52,11 @@
         try {
             const studentRes = await window.SIMPATI.request(`/students/${id}`);
             const statsRes = await window.SIMPATI.request(`/students/${id}/stats`);
+            const programsRes = await window.SIMPATI.fetchStudyPrograms();
+            
             const student = studentRes.data;
             const stats = statsRes.data;
+            const programs = programsRes || [];
 
             // Render detail modal
             let modal = document.getElementById('studentDetailModal');
@@ -64,6 +67,10 @@
                 document.body.appendChild(modal);
             }
 
+            const programOptions = programs.map(p => 
+                `<option value="${p.id}" ${student.study_program?.id === p.id ? 'selected' : ''}>${p.name}</option>`
+            ).join('');
+
             modal.innerHTML = `
                 <div class="w-full max-w-lg rounded-3xl bg-white p-6 shadow-xl animate-in fade-in zoom-in-95 duration-200">
                     <div class="flex items-center justify-between border-b border-slate-100 pb-4">
@@ -72,7 +79,9 @@
                             <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
                         </button>
                     </div>
-                    <div class="mt-4 space-y-4 text-sm text-slate-700">
+                    
+                    <!-- View Mode -->
+                    <div id="detailViewMode" class="mt-4 space-y-4 text-sm text-slate-700">
                         <div class="grid grid-cols-3 gap-2">
                             <span class="font-medium text-slate-500 font-semibold">Nama:</span>
                             <span class="col-span-2 text-slate-900 font-semibold">${student.name}</span>
@@ -111,11 +120,86 @@
                                 </div>
                             </div>
                         </div>
+
+                        <div class="flex justify-end gap-3 border-t border-slate-100 pt-4 mt-6">
+                            <button onclick="document.getElementById('detailViewMode').classList.add('hidden'); document.getElementById('detailEditMode').classList.remove('hidden');" class="rounded-2xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-800 transition">Edit</button>
+                            <button onclick="document.getElementById('studentDetailModal').remove()" class="rounded-2xl bg-slate-100 border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 transition">Tutup</button>
+                        </div>
+                    </div>
+
+                    <!-- Edit Mode -->
+                    <div id="detailEditMode" class="hidden mt-4 space-y-4 text-sm text-slate-700">
+                        <form onsubmit="event.preventDefault(); window.handleUpdateStudent(${student.id})">
+                            <div class="space-y-4">
+                                <div>
+                                    <label class="block text-sm font-semibold text-slate-700">Nama</label>
+                                    <input type="text" id="editStudentName" value="${student.name}" required class="mt-2 w-full rounded-2xl border border-slate-300 bg-slate-50 px-4 py-3 text-sm outline-none focus:border-slate-500 focus:bg-white" />
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-semibold text-slate-700">NIM</label>
+                                    <input type="text" id="editStudentNim" value="${student.nim || ''}" required class="mt-2 w-full rounded-2xl border border-slate-300 bg-slate-50 px-4 py-3 text-sm outline-none focus:border-slate-500 focus:bg-white" />
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-semibold text-slate-700">Email</label>
+                                    <input type="email" id="editStudentEmail" value="${student.email}" required class="mt-2 w-full rounded-2xl border border-slate-300 bg-slate-50 px-4 py-3 text-sm outline-none focus:border-slate-500 focus:bg-white" />
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-semibold text-slate-700">Program Studi</label>
+                                    <select id="editStudentProgram" required class="mt-2 w-full rounded-2xl border border-slate-300 bg-slate-50 px-4 py-3 text-sm outline-none focus:border-slate-500 focus:bg-white">
+                                        ${programOptions}
+                                    </select>
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-semibold text-slate-700">Kata Sandi Baru (Opsional)</label>
+                                    <input type="password" id="editStudentPassword" placeholder="Biarkan kosong jika tidak diubah" class="mt-2 w-full rounded-2xl border border-slate-300 bg-slate-50 px-4 py-3 text-sm outline-none focus:border-slate-500 focus:bg-white" />
+                                </div>
+                            </div>
+                            <div class="flex justify-end gap-3 border-t border-slate-100 pt-4 mt-6">
+                                <button type="submit" class="rounded-2xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-800 transition">Simpan</button>
+                                <button type="button" onclick="document.getElementById('detailEditMode').classList.add('hidden'); document.getElementById('detailViewMode').classList.remove('hidden');" class="rounded-2xl bg-slate-100 border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 transition">Batal</button>
+                            </div>
+                        </form>
                     </div>
                 </div>
             `;
         } catch (err) {
             alert('Gagal mengambil detail mahasiswa: ' + err.message);
+        }
+    }
+
+    window.handleUpdateStudent = async function(id) {
+        const name = document.getElementById('editStudentName').value.trim();
+        const nim = document.getElementById('editStudentNim').value.trim();
+        const email = document.getElementById('editStudentEmail').value.trim();
+        const study_program_id = document.getElementById('editStudentProgram').value;
+        const password = document.getElementById('editStudentPassword').value;
+
+        const body = {
+            name,
+            nim,
+            email,
+            study_program_id: parseInt(study_program_id)
+        };
+
+        if (password) {
+            body.password = password;
+            body.password_confirmation = password;
+        }
+
+        try {
+            await window.SIMPATI.request(`/students/${id}`, {
+                method: 'PUT',
+                body: body
+            });
+            alert('Data mahasiswa berhasil diperbarui!');
+            document.getElementById('studentDetailModal').remove();
+            
+            // Trigger refresh
+            const searchInput = document.getElementById('studentSearch');
+            const filterSelect = document.getElementById('studyProgramFilter');
+            await loadStudents(searchInput.value.trim(), filterSelect.value);
+        } catch (err) {
+            alert('Gagal memperbarui data mahasiswa: ' + err.message);
         }
     }
 

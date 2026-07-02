@@ -42,7 +42,7 @@ class UpdateStudentRequest extends FormRequest
             ],
             'email' => [
                 'required',
-                'email:rfc,dns',
+                'email:rfc',
                 Rule::unique('users', 'email')->ignore($studentId),
                 'max:255',
             ],
